@@ -98,9 +98,17 @@ tk.Label(top, text="Personal Finance Tracker",
 tk.Label(top, text="Sign in to your account",
          font=(FF, 10), bg=T["bg"], fg=T["subtext"]).pack()
 
+# ── Info hint for new users ───────────────────────────────────────────────────
+hint = tk.Frame(root, bg="#2a2d1e", padx=14, pady=10)
+hint.pack(padx=40, fill="x")
+
+tk.Label(hint, text="💡  New here?  Please register first if you don't have an account yet.",
+         font=(FF, 9), bg="#2a2d1e", fg="#c8d87a",
+         wraplength=340, justify="left").pack(anchor="w")
+
 # ── Card ───────────────────────────────────────────────────────────────────────
 card = tk.Frame(root, bg=T["card"], padx=36, pady=28)
-card.pack(padx=40, pady=18, fill="x")
+card.pack(padx=40, pady=12, fill="x")
 
 username_var = tk.StringVar()
 password_var = tk.StringVar()
