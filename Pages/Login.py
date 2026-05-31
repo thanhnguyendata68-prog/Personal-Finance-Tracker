@@ -1,100 +1,148 @@
+"""
+Pages/Login.py — Login screen for Personal Finance Tracker.
+"""
+
 import tkinter as tk
-from tkinter import messagebox
-import sqlite3
-import hashlib
 import os
-import subprocess
 import sys
+import subprocess
 
-DB_NAME = "users.db"
+# ── Resolve paths & import shared module ──────────────────────────────────────
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, ROOT_DIR)
 
-def connect_db():
-  return sqlite3.connect(DB_NAME)
+from db import THEME as T, FONT as FF, connect_db, create_all_tables, verify_password
 
-def create_users_table():
-  conn = connect_db()
-  cursor = conn.cursor()
-  cursor.execute("""
-      CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          username TEXT UNIQUE NOT NULL,
-          password_hash TEXT NOT NULL,
-          salt TEXT NOT NULL
-      )
-    """)
-  conn.commit()
-  conn.close()
 
-def hash_password(password, salt=None):
-  if salt is None:
-    salt = os.urandom(16)
-  password_bytes = password.encode('utf-8')
-  hashed = hashlib.pbkdf2_hmac('sha256', password_bytes, salt, 100000)
-  return hashed.hex(), salt.hex()
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def _center_window(win, w, h):
+    win.update_idletasks()
+    sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+    win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
 
-def verify_password(stored_hash, stored_salt, entered_password):
-  salt_bytes = bytes.fromhex(stored_salt)
-  entered_hash, _ = hash_password(entered_password, salt_bytes)
-  return entered_hash == stored_hash
 
+def _make_entry(parent, var, show=None):
+    """Styled dark-theme Entry with focus highlight border."""
+    border = tk.Frame(parent, bg=T["border"], padx=1, pady=1)
+    entry = tk.Entry(
+        border, textvariable=var, show=show,
+        bg=T["input_bg"], fg=T["text"],
+        insertbackground=T["accent"],
+        relief="flat", font=(FF, 11), bd=0
+    )
+    entry.pack(fill="x", ipady=9, padx=8)
+    border.pack(fill="x", pady=(0, 2))
+
+    def _focus_in(_):  border.config(bg=T["accent"])
+    def _focus_out(_): border.config(bg=T["border"])
+    entry.bind("<FocusIn>",  _focus_in)
+    entry.bind("<FocusOut>", _focus_out)
+    return entry
+
+
+# ── Login Logic ────────────────────────────────────────────────────────────────
 def login():
-  username = username_entry.get().strip()
-  password = password_entry.get().strip()
+    username = username_var.get().strip()
+    password = password_var.get().strip()
+    error_var.set("")
 
-  error_label.config(text="")
+    if not username or not password:
+        error_var.set("⚠  Please enter both username and password.")
+        return
 
-  if not username or not password:
-    error_label.config(text="Please enter both username and password." )
-    return
-  
-  conn = connect_db()
-  cursor = conn.cursor()
-  cursor.execute("SELECT password_hash, salt FROM users WHERE username = ?", (username,))
-  user = cursor.fetchone()
-  conn.close()
+    conn = connect_db()
+    c    = conn.cursor()
+    c.execute(
+        "SELECT id, password_hash, salt FROM users WHERE username = ?",
+        (username,)
+    )
+    user = c.fetchone()
+    conn.close()
 
-  if user:
-    stored_hash, stored_salt = user
-    if verify_password(stored_hash, stored_salt, password):
-      messagebox.showinfo("Login Successful", f"Welcome, {username}!")
-      root.destroy()
-      subprocess.Popen([sys.executable, "Dashboard.py"])
-    else:
-      error_label.config(text="Wrong username or password.")
-  else:
-    error_label.config(text="Wrong username or password.")
+    if user:
+        user_id, stored_hash, stored_salt = user
+        if verify_password(stored_hash, stored_salt, password):
+            root.destroy()
+            # ✔ Fixed: redirect to Dashboard, not Transaction
+            script = os.path.join(ROOT_DIR, "Dashboard.py")
+            subprocess.Popen([sys.executable, script, str(user_id)])
+            return
 
-def open_registration():
-  root.destroy()
-  subprocess.Popen([sys.executable, "Pages/Register.py"])
+    error_var.set("✗  Invalid username or password.")
 
-create_users_table()
+
+def open_register():
+    root.destroy()
+    subprocess.Popen([
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "Register.py")
+    ])
+
+
+# ── UI ─────────────────────────────────────────────────────────────────────────
+create_all_tables()
 
 root = tk.Tk()
-root.title("Login Page")
-root.geometry("400x320")
+root.title("Personal Finance Tracker — Login")
 root.resizable(False, False)
+root.configure(bg=T["bg"])
+_center_window(root, 440, 530)
 
-title_label = tk.Label(root, text="Login", font=("Arial", 18, "bold"))
-title_label.pack(pady=15)
+# ── Logo / Title ───────────────────────────────────────────────────────────────
+top = tk.Frame(root, bg=T["bg"])
+top.pack(pady=(44, 8))
 
-username_label = tk.Label(root, text="Username")
-username_label.pack()
-username_entry = tk.Entry(root, width=30)
-username_entry.pack(pady=5)
+tk.Label(top, text="💰", font=(FF, 38), bg=T["bg"], fg=T["accent"]).pack()
+tk.Label(top, text="Personal Finance Tracker",
+         font=(FF, 16, "bold"), bg=T["bg"], fg=T["text"]).pack(pady=(4, 0))
+tk.Label(top, text="Sign in to your account",
+         font=(FF, 10), bg=T["bg"], fg=T["subtext"]).pack()
 
-password_label = tk.Label(root, text="Password")
-password_label.pack()
-password_entry = tk.Entry(root, width=30, show="*")
-password_entry.pack(pady=5)
+# ── Card ───────────────────────────────────────────────────────────────────────
+card = tk.Frame(root, bg=T["card"], padx=36, pady=28)
+card.pack(padx=40, pady=18, fill="x")
 
-login_button = tk.Button(root, text="Login", width=20, command=login)
-login_button.pack(pady=10)
+username_var = tk.StringVar()
+password_var = tk.StringVar()
+error_var    = tk.StringVar()
 
-register_button = tk.Button(root, text="Register", width=20, command=open_registration)
-register_button.pack(pady=5)
+tk.Label(card, text="Username", font=(FF, 10),
+         bg=T["card"], fg=T["subtext"]).pack(anchor="w", pady=(0, 2))
+u_entry = _make_entry(card, username_var)
 
-error_label = tk.Label(root, text="", fg="red", font=("Arial", 10))
-error_label.pack(pady=10)
+tk.Label(card, text="Password", font=(FF, 10),
+         bg=T["card"], fg=T["subtext"]).pack(anchor="w", pady=(10, 2))
+p_entry = _make_entry(card, password_var, show="•")
+
+# Error message
+tk.Label(card, textvariable=error_var, font=(FF, 9),
+         bg=T["card"], fg=T["red"], wraplength=320).pack(pady=(10, 0))
+
+# ── Sign-In Button ─────────────────────────────────────────────────────────────
+login_btn = tk.Button(
+    card, text="Sign In", font=(FF, 11, "bold"),
+    bg=T["accent"], fg="white",
+    activebackground=T["accent_hover"], activeforeground="white",
+    relief="flat", cursor="hand2", command=login
+)
+login_btn.pack(fill="x", ipady=10, pady=(16, 0))
+login_btn.bind("<Enter>", lambda _: login_btn.config(bg=T["accent_hover"]))
+login_btn.bind("<Leave>", lambda _: login_btn.config(bg=T["accent"]))
+
+# ── Register Link ──────────────────────────────────────────────────────────────
+bottom = tk.Frame(root, bg=T["bg"])
+bottom.pack(pady=8)
+
+tk.Label(bottom, text="Don't have an account?", font=(FF, 9),
+         bg=T["bg"], fg=T["subtext"]).pack(side="left")
+
+reg_link = tk.Label(bottom, text=" Register here", font=(FF, 9, "underline"),
+                    bg=T["bg"], fg=T["accent"], cursor="hand2")
+reg_link.pack(side="left")
+reg_link.bind("<Button-1>", lambda _: open_register())
+
+# ── Key bindings ───────────────────────────────────────────────────────────────
+root.bind("<Return>", lambda _: login())
+u_entry.focus_set()
 
 root.mainloop()

@@ -1,116 +1,210 @@
+"""
+Pages/Register.py — Account registration screen for Personal Finance Tracker.
+"""
+
 import tkinter as tk
-from tkinter import messagebox
-import sqlite3
-import hashlib
 import os
-import subprocess
 import sys
+import subprocess
 
-DB_NAME = "users.db"
+# ── Resolve paths & import shared module ──────────────────────────────────────
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, ROOT_DIR)
 
-def connect_db():
-  return sqlite3.connect(DB_NAME)
+from db import THEME as T, FONT as FF, connect_db, create_all_tables, hash_password
 
-def create_users_table():
-  conn = connect_db()
-  cursor = conn.cursor()
-  cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      salt TEXT NOT NULL
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def _center_window(win, w, h):
+    win.update_idletasks()
+    sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+    win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+
+
+def _make_entry(parent, var, show=None):
+    """Styled dark-theme Entry with focus highlight border."""
+    border = tk.Frame(parent, bg=T["border"], padx=1, pady=1)
+    entry = tk.Entry(
+        border, textvariable=var, show=show,
+        bg=T["input_bg"], fg=T["text"],
+        insertbackground=T["accent"],
+        relief="flat", font=(FF, 11), bd=0
     )
-  ''')
-  conn.commit()
-  conn.close()
+    entry.pack(fill="x", ipady=9, padx=8)
+    border.pack(fill="x", pady=(0, 2))
 
-def hash_password(password, salt=None):
-  if salt is None:
-    salt = os.urandom(16)
-  password_bytes = password.encode('utf-8')
-  hashed = hashlib.pbkdf2_hmac('sha256', password_bytes, salt, 100000)
-  return hashed.hex(), salt.hex()
+    def _focus_in(_):  border.config(bg=T["accent"])
+    def _focus_out(_): border.config(bg=T["border"])
+    entry.bind("<FocusIn>",  _focus_in)
+    entry.bind("<FocusOut>", _focus_out)
+    return entry
 
-def username_exists(username):
-  conn = connect_db()
-  cursor = conn.cursor()
-  cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
-  result = cursor.fetchone()
-  conn.close()
-  return result is not None
 
+def _username_exists(username: str) -> bool:
+    conn = connect_db()
+    c    = conn.cursor()
+    c.execute("SELECT id FROM users WHERE username = ?", (username,))
+    result = c.fetchone()
+    conn.close()
+    return result is not None
+
+
+def _password_strength(pw: str) -> tuple:
+    """
+    Returns (label, color) describing password strength.
+    Criteria: length, digits, uppercase, special chars.
+    """
+    score = 0
+    if len(pw) >= 8:  score += 1
+    if any(c.isdigit() for c in pw):   score += 1
+    if any(c.isupper() for c in pw):   score += 1
+    if any(c in "!@#$%^&*()-_=+[]{}|;:',.<>?/" for c in pw): score += 1
+
+    if score <= 1: return "Weak",   T["red"]
+    if score == 2: return "Fair",   T["yellow"]
+    if score == 3: return "Good",   T["accent"]
+    return "Strong", T["green"]
+
+
+# ── Registration Logic ─────────────────────────────────────────────────────────
 def create_account():
-  username = username_entry.get().strip()
-  password = password_entry.get().strip()
-  confirm_password = confirm_password_entry.get().strip()
+    username         = username_var.get().strip()
+    password         = password_var.get().strip()
+    confirm_password = confirm_var.get().strip()
+    error_var.set("")
 
-  error_label.config(text="")
+    if not username:
+        error_var.set("⚠  Username cannot be empty.")
+        return
 
-  if not username:
-    error_label.config(text="Username cannot be empty.")
-    return
+    if len(password) < 6:
+        error_var.set("⚠  Password must be at least 6 characters.")
+        return
 
-  if not password:
-    error_label.config(text="Password should not be empty.")
-    return
-  
-  if password != confirm_password:
-    error_label.config(text="Passwords do not match.")
-    return
-  
-  if username_exists(username):
-    error_label.config(text="Username already exists. Please choose another.")
-    return
+    if password != confirm_password:
+        error_var.set("✗  Passwords do not match.")
+        return
 
-  password_hash, salt = hash_password(password)
+    if _username_exists(username):
+        error_var.set("✗  Username already taken. Please choose another.")
+        return
 
-  conn = connect_db()
-  cursor = conn.cursor()
-  cursor.execute("INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)", (username, password_hash, salt))
-  conn.commit()
-  conn.close()
+    password_hash, salt = hash_password(password)
 
-  messagebox.showinfo("Account Created", "Your account has been created successfully!")
-  root.destroy()
-  subprocess.Popen([sys.executable, "Pages/Login.py"])
+    conn = connect_db()
+    c    = conn.cursor()
+    c.execute(
+        "INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)",
+        (username, password_hash, salt)
+    )
+    conn.commit()
+    conn.close()
+
+    root.destroy()
+    # Redirect to Login after successful registration
+    subprocess.Popen([
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "Login.py")
+    ])
+
 
 def back_to_login():
-  root.destroy()
-  subprocess.Popen([sys.executable, "Pages/Login.py"])
+    root.destroy()
+    subprocess.Popen([
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "Login.py")
+    ])
 
-create_users_table()
+
+# ── UI ─────────────────────────────────────────────────────────────────────────
+create_all_tables()
 
 root = tk.Tk()
-root.title("Register Page")
-root.geometry("400x380")
+root.title("Personal Finance Tracker — Register")
 root.resizable(False, False)
+root.configure(bg=T["bg"])
+_center_window(root, 440, 600)
 
-title_label = tk.Label(root, text="Register", font=("Arial", 18, "bold"))
-title_label.pack(pady=15)
+# ── Logo / Title ───────────────────────────────────────────────────────────────
+top = tk.Frame(root, bg=T["bg"])
+top.pack(pady=(36, 8))
 
-username_label = tk.Label(root, text="Username")
-username_label.pack()
-username_entry = tk.Entry(root, width=30)
-username_entry.pack(pady=5)
+tk.Label(top, text="💰", font=(FF, 34), bg=T["bg"], fg=T["accent"]).pack()
+tk.Label(top, text="Create Your Account",
+         font=(FF, 16, "bold"), bg=T["bg"], fg=T["text"]).pack(pady=(4, 0))
+tk.Label(top, text="Start tracking your finances today",
+         font=(FF, 10), bg=T["bg"], fg=T["subtext"]).pack()
 
-password_label = tk.Label(root, text="Password")
-password_label.pack()
-password_entry = tk.Entry(root, width=30, show="*")
-password_entry.pack(pady=5)
+# ── Card ───────────────────────────────────────────────────────────────────────
+card = tk.Frame(root, bg=T["card"], padx=36, pady=24)
+card.pack(padx=40, pady=14, fill="x")
 
-confirm_password_label = tk.Label(root, text="Confirm Password")
-confirm_password_label.pack()
-confirm_password_entry = tk.Entry(root, width=30, show="*")
-confirm_password_entry.pack(pady=5)
+username_var = tk.StringVar()
+password_var = tk.StringVar()
+confirm_var  = tk.StringVar()
+error_var    = tk.StringVar()
 
-create_account_button = tk.Button(root, text="Create Account", width=20, command=create_account)
-create_account_button.pack(pady=10)
+# Username
+tk.Label(card, text="Username", font=(FF, 10),
+         bg=T["card"], fg=T["subtext"]).pack(anchor="w", pady=(0, 2))
+_make_entry(card, username_var)
 
-back_button = tk.Button(root, text="Back to Login", width=20, command=back_to_login)
-back_button.pack(pady=5)
+# Password + strength indicator
+tk.Label(card, text="Password", font=(FF, 10),
+         bg=T["card"], fg=T["subtext"]).pack(anchor="w", pady=(10, 2))
 
-error_label = tk.Label(root, text="", fg="red", font=("Arial", 10))
-error_label.pack(pady=10)
+strength_var   = tk.StringVar()
+strength_color = tk.StringVar(value=T["subtext"])
+
+def _on_password_change(*_):
+    pw = password_var.get()
+    if pw:
+        label, color = _password_strength(pw)
+        strength_var.set(f"Strength: {label}")
+        strength_lbl.config(fg=color)
+    else:
+        strength_var.set("")
+
+password_var.trace_add("write", _on_password_change)
+_make_entry(card, password_var, show="•")
+
+strength_lbl = tk.Label(card, textvariable=strength_var, font=(FF, 9),
+                         bg=T["card"], fg=T["subtext"])
+strength_lbl.pack(anchor="w", pady=(2, 0))
+
+# Confirm password
+tk.Label(card, text="Confirm Password", font=(FF, 10),
+         bg=T["card"], fg=T["subtext"]).pack(anchor="w", pady=(10, 2))
+_make_entry(card, confirm_var, show="•")
+
+# Error message
+tk.Label(card, textvariable=error_var, font=(FF, 9),
+         bg=T["card"], fg=T["red"], wraplength=320).pack(pady=(10, 0))
+
+# ── Create Account Button ──────────────────────────────────────────────────────
+create_btn = tk.Button(
+    card, text="Create Account", font=(FF, 11, "bold"),
+    bg=T["accent"], fg="white",
+    activebackground=T["accent_hover"], activeforeground="white",
+    relief="flat", cursor="hand2", command=create_account
+)
+create_btn.pack(fill="x", ipady=10, pady=(14, 0))
+create_btn.bind("<Enter>", lambda _: create_btn.config(bg=T["accent_hover"]))
+create_btn.bind("<Leave>", lambda _: create_btn.config(bg=T["accent"]))
+
+# ── Back to Login Link ─────────────────────────────────────────────────────────
+bottom = tk.Frame(root, bg=T["bg"])
+bottom.pack(pady=8)
+
+tk.Label(bottom, text="Already have an account?", font=(FF, 9),
+         bg=T["bg"], fg=T["subtext"]).pack(side="left")
+
+login_link = tk.Label(bottom, text=" Sign in", font=(FF, 9, "underline"),
+                      bg=T["bg"], fg=T["accent"], cursor="hand2")
+login_link.pack(side="left")
+login_link.bind("<Button-1>", lambda _: back_to_login())
+
+# ── Key bindings ───────────────────────────────────────────────────────────────
+root.bind("<Return>", lambda _: create_account())
 
 root.mainloop()
