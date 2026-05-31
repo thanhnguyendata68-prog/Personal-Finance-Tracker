@@ -102,9 +102,17 @@ tk.Label(top, text="Sign in to your account",
 hint = tk.Frame(root, bg="#2a2d1e", padx=14, pady=10)
 hint.pack(padx=40, fill="x")
 
-tk.Label(hint, text="💡  New here?  Please register first if you don't have an account yet.",
-         font=(FF, 9), bg="#2a2d1e", fg="#c8d87a",
-         wraplength=340, justify="left").pack(anchor="w")
+hint_row = tk.Frame(hint, bg="#2a2d1e")
+hint_row.pack(anchor="w")
+
+tk.Label(hint_row, text="💡  New here?  No account yet? →",
+         font=(FF, 9), bg="#2a2d1e", fg="#c8d87a").pack(side="left")
+
+reg_hint_link = tk.Label(hint_row, text="Register here",
+                          font=(FF, 9, "bold", "underline"),
+                          bg="#2a2d1e", fg="#a8f07a", cursor="hand2")
+reg_hint_link.pack(side="left", padx=(4, 0))
+reg_hint_link.bind("<Button-1>", lambda _: open_register())
 
 # ── Card ───────────────────────────────────────────────────────────────────────
 card = tk.Frame(root, bg=T["card"], padx=36, pady=28)
