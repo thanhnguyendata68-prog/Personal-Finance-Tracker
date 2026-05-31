@@ -12,32 +12,7 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT_DIR)
 
 from db import THEME as T, FONT as FF, connect_db, create_all_tables, verify_password
-
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
-def _center_window(win, w, h):
-    win.update_idletasks()
-    sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
-    win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
-
-
-def _make_entry(parent, var, show=None):
-    """Styled dark-theme Entry with focus highlight border."""
-    border = tk.Frame(parent, bg=T["border"], padx=1, pady=1)
-    entry = tk.Entry(
-        border, textvariable=var, show=show,
-        bg=T["input_bg"], fg=T["text"],
-        insertbackground=T["accent"],
-        relief="flat", font=(FF, 11), bd=0
-    )
-    entry.pack(fill="x", ipady=9, padx=8)
-    border.pack(fill="x", pady=(0, 2))
-
-    def _focus_in(_):  border.config(bg=T["accent"])
-    def _focus_out(_): border.config(bg=T["border"])
-    entry.bind("<FocusIn>",  _focus_in)
-    entry.bind("<FocusOut>", _focus_out)
-    return entry
+from ui_helpers import make_entry, center_window
 
 
 # ── Login Logic ────────────────────────────────────────────────────────────────
@@ -86,7 +61,7 @@ root = tk.Tk()
 root.title("Personal Finance Tracker — Login")
 root.resizable(False, False)
 root.configure(bg=T["bg"])
-_center_window(root, 440, 530)
+center_window(root, 440, 530)
 
 # ── Logo / Title ───────────────────────────────────────────────────────────────
 top = tk.Frame(root, bg=T["bg"])
@@ -124,11 +99,11 @@ error_var    = tk.StringVar()
 
 tk.Label(card, text="Username", font=(FF, 10),
          bg=T["card"], fg=T["subtext"]).pack(anchor="w", pady=(0, 2))
-u_entry = _make_entry(card, username_var)
+u_entry, _ = make_entry(card, username_var)
 
 tk.Label(card, text="Password", font=(FF, 10),
          bg=T["card"], fg=T["subtext"]).pack(anchor="w", pady=(10, 2))
-p_entry = _make_entry(card, password_var, show="•")
+p_entry, _ = make_entry(card, password_var, show="•")
 
 # Error message
 tk.Label(card, textvariable=error_var, font=(FF, 9),

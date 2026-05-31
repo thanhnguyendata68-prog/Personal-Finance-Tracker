@@ -16,6 +16,7 @@ from db import (THEME as T, FONT as FF,
                 create_all_tables,
                 get_monthly_summary, get_category_summary,
                 get_total_income, get_total_expenses,
+                get_all_time_income, get_all_time_expenses,
                 get_all_time_balance, get_current_month)
 
 from matplotlib.figure import Figure
@@ -77,8 +78,8 @@ class ReportsPage(tk.Tk):
         balance = get_all_time_balance(self.user_id)
         savings = income - expense
 
-        all_income  = get_total_income(self.user_id,  None)
-        all_expense = get_total_expenses(self.user_id, None)
+        all_income  = get_all_time_income(self.user_id)
+        all_expense = get_all_time_expenses(self.user_id)
 
         cards = [
             ("💳  Net Balance",          f"${balance:,.2f}",  T["accent"]),

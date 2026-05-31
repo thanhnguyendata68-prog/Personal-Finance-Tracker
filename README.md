@@ -16,9 +16,9 @@
 | 🔐 **Secure Authentication** | PBKDF2-SHA256 password hashing with unique per-user salt |
 | 👥 **Multi-User Support** | Each account sees only their own data |
 | 📊 **Dashboard** | Live stat cards (balance, income, expenses, savings) with a donut chart |
-| 💸 **Transaction Management** | Add, view, and delete income/expense records with categories |
+| 💸 **Transaction Management** | Add, view, delete, and **export to CSV** income/expense records with categories |
 | 💰 **Budget Manager** | Set custom monthly budgets with a colour-coded progress bar |
-| 📈 **Financial Reports** | 6-month income vs expense bar chart + category pie breakdown |
+| 📈 **Financial Reports** | 6-month income vs expense bar chart + all-time & monthly category pie breakdown |
 | 🗄 **SQLite Persistence** | Lightweight local database — no server required |
 | 🎨 **Modern Dark UI** | Polished dark theme with focus animations and hover effects |
 
@@ -33,6 +33,7 @@
 | **SQLite 3** | Local relational data storage |
 | **Matplotlib** | Embedded charts (bar, pie, donut) |
 | **hashlib (PBKDF2)** | Cryptographic password hashing |
+| **csv (stdlib)** | One-click CSV export of transactions |
 
 ---
 
@@ -41,8 +42,10 @@
 ```
 Personal Finance Tracker/
 ├── db.py              # Shared module: DB schema, auth, theme, queries
+├── ui_helpers.py      # Shared UI utilities (entry widget, window centering)
 ├── Dashboard.py       # Main dashboard window (entry point after login)
-├── Transaction.py     # Add & manage income/expense transactions
+├── Transaction.py     # Add, manage & export income/expense transactions
+├── requirements.txt   # Python dependencies
 ├── users.db           # SQLite database (auto-created on first run)
 └── Pages/
     ├── Login.py       # User login screen
@@ -54,10 +57,10 @@ Personal Finance Tracker/
 
 ## 🚀 Getting Started
 
-### 1. Install dependency
+### 1. Install dependencies
 
 ```bash
-pip install matplotlib
+pip install -r requirements.txt
 ```
 
 ### 2. Run the application
@@ -81,9 +84,11 @@ Register a new account, then log in — you'll land on the Dashboard.
 
 ## 🧠 What I Learned
 
-- Designing **modular Python applications** with a shared utility layer (`db.py`)
+- Designing **modular Python applications** with a shared utility layer (`db.py`, `ui_helpers.py`)
 - Implementing **industry-standard password security** (PBKDF2 + salt)
 - Embedding **Matplotlib charts** inside Tkinter windows (`FigureCanvasTkAgg`)
 - Managing **SQLite schema migrations** (`ALTER TABLE`) without data loss
 - Building a **multi-window Tkinter app** using subprocess for process isolation
 - Applying a consistent **design system** (colours, fonts, spacing) across all screens
+- Enforcing **row-level data isolation** — users can only read/delete their own records
+- Exporting structured data to **CSV** using Python's built-in `csv` module

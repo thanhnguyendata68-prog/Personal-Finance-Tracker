@@ -3,11 +3,12 @@ Transaction.py — Add, view, and delete transactions.
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import sqlite3
 import subprocess
 import sys
 import os
+import csv
 from datetime import datetime
 
 # ── Paths & shared module ──────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ sys.path.insert(0, ROOT_DIR)
 from db import (THEME as T, FONT as FF,
                 connect_db, create_all_tables,
                 get_all_transactions)
+from ui_helpers import make_entry, center_window
 
 # ── Categories ─────────────────────────────────────────────────────────────────
 EXPENSE_CATEGORIES = [
@@ -27,24 +29,6 @@ INCOME_CATEGORIES = [
     "Salary", "Freelance", "Gift", "Bonus", "Other"
 ]
 
-
-# ── Styled helper ──────────────────────────────────────────────────────────────
-def _make_entry(parent, var=None, show=None, width=None):
-    """Dark-theme Entry with focus highlight border."""
-    border = tk.Frame(parent, bg=T["border"], padx=1, pady=1)
-    kw = dict(bg=T["input_bg"], fg=T["text"], insertbackground=T["accent"],
-              relief="flat", font=(FF, 11), bd=0)
-    if var:
-        kw["textvariable"] = var
-    if show:
-        kw["show"] = show
-    entry = tk.Entry(border, **kw)
-    entry.pack(fill="x", ipady=7, padx=6)
-    border.pack(fill="x", pady=(0, 2))
-
-    entry.bind("<FocusIn>",  lambda _: border.config(bg=T["accent"]))
-    entry.bind("<FocusOut>", lambda _: border.config(bg=T["border"]))
-    return entry, border
 
 
 class TransactionApp(tk.Tk):
@@ -59,16 +43,10 @@ class TransactionApp(tk.Tk):
         self.geometry("860x680")
         self.resizable(False, False)
         self.configure(bg=T["bg"])
-        self._center()
+        center_window(self, 860, 680)
         self._apply_styles()
         self._build_ui()
         self._load_transactions()
-
-    # ── Setup ──────────────────────────────────────────────────────────────────
-    def _center(self):
-        self.update_idletasks()
-        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-        self.geometry(f"860x680+{(sw - 860) // 2}+{(sh - 680) // 2}")
 
     def _apply_styles(self):
         style = ttk.Style(self)
@@ -145,7 +123,7 @@ class TransactionApp(tk.Tk):
         # Amount
         lbl("Amount ($)")
         self.amount_var = tk.StringVar()
-        self.amount_entry, _ = _make_entry(form_card, self.amount_var)
+        self.amount_entry, _ = make_entry(form_card, self.amount_var)
 
         # Category
         lbl("Category")
@@ -159,12 +137,12 @@ class TransactionApp(tk.Tk):
         # Date
         lbl("Date (YYYY-MM-DD)")
         self.date_var = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        self.date_entry, _ = _make_entry(form_card, self.date_var)
+        self.date_entry, _ = make_entry(form_card, self.date_var)
 
         # Note
         lbl("Note (optional)")
         self.note_var = tk.StringVar()
-        self.note_entry, _ = _make_entry(form_card, self.note_var)
+        self.note_entry, _ = make_entry(form_card, self.note_var)
 
         # Error label
         self.error_var = tk.StringVar()
@@ -202,6 +180,15 @@ class TransactionApp(tk.Tk):
             padx=10, pady=4
         )
         del_btn.pack(side="right")
+
+        csv_btn = tk.Button(
+            tbl_header, text="📥  Export CSV", font=(FF, 9),
+            bg=T["card2"], fg=T["accent"],
+            activebackground=T["border"], activeforeground=T["accent"],
+            relief="flat", cursor="hand2", command=self._export_csv,
+            padx=10, pady=4
+        )
+        csv_btn.pack(side="right", padx=8)
 
         ref_btn = tk.Button(
             tbl_header, text="↺ Refresh", font=(FF, 9),
@@ -315,17 +302,46 @@ class TransactionApp(tk.Tk):
 
         conn = connect_db()
         c    = conn.cursor()
-        c.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
+        # Security: WHERE clause includes user_id so users can only delete their own records
+        c.execute("DELETE FROM transactions WHERE id = ? AND user_id = ?",
+                  (transaction_id, self.user_id))
+        affected = c.rowcount
         conn.commit()
         conn.close()
 
-        messagebox.showinfo("Deleted", "Transaction deleted successfully.")
+        if affected:
+            messagebox.showinfo("Deleted", "Transaction deleted successfully.")
+        else:
+            messagebox.showwarning("Not Found", "Transaction not found or access denied.")
         self._load_transactions()
 
     def _clear_form(self):
         self.amount_var.set("")
         self.note_var.set("")
         self.date_var.set(datetime.now().strftime("%Y-%m-%d"))
+
+    def _export_csv(self):
+        """Export all transactions for this user to a CSV file."""
+        rows = get_all_transactions(self.user_id)
+        if not rows:
+            messagebox.showinfo("No Data", "There are no transactions to export.")
+            return
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            initialfile="transactions.csv",
+            title="Save transactions as CSV"
+        )
+        if not path:
+            return  # user cancelled
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["ID", "Type", "Amount", "Category", "Date", "Note"])
+            writer.writerows(rows)
+
+        messagebox.showinfo("Exported", f"✔  {len(rows)} transactions saved to:\n{path}")
 
     def open_dashboard(self):
         self.destroy()

@@ -164,17 +164,36 @@ def get_total_expenses(user_id, month: str = None) -> float:
     return total
 
 
-def get_all_time_balance(user_id) -> float:
-    """All-time net balance (total income − total expenses) for a user."""
+def get_all_time_income(user_id) -> float:
+    """Sum of ALL income transactions ever recorded for a user (no month filter)."""
     if user_id is None:
         return 0.0
     conn = connect_db()
     c = conn.cursor()
-    c.execute("SELECT IFNULL(SUM(amount),0) FROM transactions WHERE type='Income'  AND user_id=?", (user_id,))
-    inc = c.fetchone()[0]
-    c.execute("SELECT IFNULL(SUM(amount),0) FROM transactions WHERE type='Expense' AND user_id=?", (user_id,))
-    exp = c.fetchone()[0]
+    c.execute("SELECT IFNULL(SUM(amount),0) FROM transactions WHERE type='Income' AND user_id=?", (user_id,))
+    total = c.fetchone()[0]
     conn.close()
+    return total
+
+
+def get_all_time_expenses(user_id) -> float:
+    """Sum of ALL expense transactions ever recorded for a user (no month filter)."""
+    if user_id is None:
+        return 0.0
+    conn = connect_db()
+    c = conn.cursor()
+    c.execute("SELECT IFNULL(SUM(amount),0) FROM transactions WHERE type='Expense' AND user_id=?", (user_id,))
+    total = c.fetchone()[0]
+    conn.close()
+    return total
+
+
+def get_all_time_balance(user_id) -> float:
+    """All-time net balance (total income − total expenses) for a user."""
+    if user_id is None:
+        return 0.0
+    inc = get_all_time_income(user_id)
+    exp = get_all_time_expenses(user_id)
     return inc - exp
 
 
